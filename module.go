@@ -10,6 +10,7 @@ import (
 	"github.com/semanggilab/webcore-go/app/logger"
 	"github.com/semanggilab/webcore-go/app/out"
 	tbconfig "github.com/semanggilab/webcore-go/modules/tb/config"
+	tbmodels "github.com/semanggilab/webcore-go/modules/tb/models"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/handler"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/models"
@@ -196,6 +197,7 @@ func (m *Module) Repositories() map[string]any {
 		"repositoryPubSub": m.repositoryPubSub,
 	}
 }
+
 func (m *Module) PublishPubSub(c *fiber.Ctx) error {
 	if m.producer == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(out.Error(
@@ -205,7 +207,7 @@ func (m *Module) PublishPubSub(c *fiber.Ctx) error {
 			"Terjadi kesalahan saat menginisiasi koneksi ke PubSub"))
 	}
 
-	var payload models.HttpProxyOutgoingMessage
+	var payload models.HttpProxyOutgoingMessage[any]
 
 	// Bind body JSON dari request ke dalam variabel payload.
 	if err := c.BodyParser(&payload); err != nil {
@@ -244,6 +246,66 @@ func (m *Module) PublishPubSub(c *fiber.Ctx) error {
 	}, "Pesan telah diteruskan ke PubSub"))
 }
 
+func (m *Module) PublishPubSubSkriningCKG(c *fiber.Ctx) error {
+	if m.producer == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(out.Error(
+			fiber.StatusInternalServerError,
+			5,
+			"PUBSUB_NOT_READY",
+			"Terjadi kesalahan saat menginisiasi koneksi ke PubSub"))
+	}
+
+	var payload models.HttpProxyOutgoingMessage[tbmodels.DataSkriningTBResult]
+
+	// Bind body JSON dari request ke dalam variabel payload.
+	if err := c.BodyParser(&payload); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(out.ErrorDetail(
+			fiber.StatusBadRequest,
+			4,
+			"PAYLOAD_INVALID",
+			"Format body salah", err))
+	}
+
+	if payload.Data == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(out.Error(
+			fiber.StatusBadRequest,
+			4,
+			"PAYLOAD_INVALID",
+			"field 'data' harus diisi"))
+	}
+
+	if payload.Topic == nil || *payload.Topic == "" {
+		payload.Topic = &m.context.Config.PubSub.Topic
+	}
+
+	data := tbmodels.DataSkriningTBResult{}
+	data.FromMap(payload.Data.(map[string]any))
+	pubsubObjectWrapper := models.NewPubSubProducerWrapper(m.config, []*tbmodels.DataSkriningTBResult{&data})
+	dataStr, err := pubsubObjectWrapper.ToJSON()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(out.ErrorDetail(
+			fiber.StatusInternalServerError,
+			3,
+			"INTERNAL",
+			"Gagal Publish Data Skrining CKG ke PubSub",
+			err))
+	}
+	id, err := m.producer.Publish(m.context.Context, dataStr, payload.Attributes)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(out.ErrorDetail(
+			fiber.StatusInternalServerError,
+			3,
+			"INTERNAL",
+			"Gagal Publish ke PubSub",
+			err))
+	}
+	return c.JSON(out.SuccessDataMessage(struct {
+		PublishID string
+	}{
+		PublishID: id,
+	}, "Pesan telah diteruskan ke PubSub"))
+}
+
 // registerRoutes registers the module's routes
 func (m *Module) registerRoutes(root fiber.Router) {
 	// Module routes
@@ -254,6 +316,13 @@ func (m *Module) registerRoutes(root fiber.Router) {
 		Method:  "POST",
 		Path:    "/publish", // Helper to publish pubsub message via HTTP Requiest
 		Handler: m.PublishPubSub,
+		Root:    moduleRoot,
+	})
+
+	m.routes = core.AppendRouteToArray(m.routes, &core.ModuleRoute{
+		Method:  "POST",
+		Path:    "/publish/skrining", // Helper to publish pubsub message via HTTP Requiest
+		Handler: m.PublishPubSubSkriningCKG,
 		Root:    moduleRoot,
 	})
 

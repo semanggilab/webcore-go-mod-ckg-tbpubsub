@@ -46,7 +46,6 @@ func (r *CkgReceiver) Prepare(ctx context.Context, messages []loader.IPubSubMess
 
 	// Process semua message satu-satu
 	for _, msg := range messages {
-		logger.DebugJson("PubSub Receive Raw:", msg)
 		// Skip jika message ID sudah diproses sebelumnya
 		if slices.Contains(existingIDs, msg.GetID()) {
 			logger.Debug("Skip message", "id", msg.GetID())
@@ -55,7 +54,6 @@ func (r *CkgReceiver) Prepare(ctx context.Context, messages []loader.IPubSubMess
 
 		// Parse message data
 		dataStr := pubsubDataToString(msg.GetData())
-		logger.DebugJson("PubSub Receive Raw String:", dataStr)
 
 		pubsubObjectWrapper := models.NewPubSubConsumerWrapper[*tbmodels.StatusPasienTBInput](r.Configurations)
 		err := pubsubObjectWrapper.FromJSON(dataStr)

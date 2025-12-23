@@ -14,7 +14,7 @@ type OutgoingMessageSkriningTB struct {
 	// CkgID     string `json:"ckg_id" bson:"ckg_id"`
 }
 
-type HttpProxyOutgoingMessage struct {
+type HttpProxyOutgoingMessage[T any] struct {
 	Topic      *string           `json:"topic"`
 	Data       any               `json:"data"`
 	Attributes map[string]string `json:"attributes"`

@@ -44,8 +44,6 @@ func NewPubSubProducerWrapper[T PubSubObject](config *config.ModuleConfig, data 
 
 // FromMap creates a PubSubObject from a map
 func (t *PubSubObjectWrapper[T]) DataFromMap(obj map[string]any) error {
-	logger.DebugJson("PubSub Receive MapObject:", obj)
-
 	cfg := t.Config
 
 	markerValueObj, ok := obj[cfg.Marker.Field].(string)
