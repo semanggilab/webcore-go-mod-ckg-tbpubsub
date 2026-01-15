@@ -126,6 +126,7 @@ func (m *Module) Init(ctx *core.AppContext) error {
 	}
 
 	// PubSub utama sebagai Consumer
+	producerAllowed := 0
 	lib, ok := ctx.GetDefaultSingletonInstance("pubsub")
 	if ok {
 		consumer := lib.(loader.IPubSub)
@@ -135,29 +136,35 @@ func (m *Module) Init(ctx *core.AppContext) error {
 		m.consumer.RegisterReceiver(handler.NewCkgReceiver(ctx.Context, m.config, m.repositoryTB, m.repositoryPubSub))
 		m.consumer.StartReceiving(ctx.Context)
 
-		logger.Info("PubSub Consumer", "subscription", ctx.Config.PubSub.Subscription)
+		logger.Info("PubSub Consumer successfully initialize", "subscription", ctx.Config.PubSub.Subscription)
 
-		// Siapkan PubSub kedua sebagai Producer dengan Subscription ID yang berbeda
-		if m.config.ProducerSubscription != "" {
-			load, err := ctx.GetLibraryLoader("pubsub")
-			if err != nil {
-				return nil
-			}
+		if m.config.ProducerTopic != "" {
+			producerAllowed = 2
+		}
+	} else if ctx.Config.PubSub.Topic == "" {
+		if ctx.Config.PubSub.ProjectID != "" && m.config.ProducerTopic != "" {
+			producerAllowed = 1
+		}
+	}
 
-			// Gunakan konfigurasi utama lalu ganti subscription
-			newConfig := ctx.Config.PubSub
-			newConfig.Subscription = m.config.ProducerSubscription
-			lib, err := ctx.LoadInstance(load, "producer", ctx.Context, newConfig)
-			if err != nil {
-				return err
-			}
-
-			producer := lib.(loader.IPubSub)
-			m.producer = producer
-			logger.Info("PubSub Producer", "subscription", newConfig.Subscription)
+	// Siapkan PubSub kedua sebagai Producer dengan Topic ID yang berbeda
+	if producerAllowed > 0 {
+		load, err := ctx.GetLibraryLoader("pubsub")
+		if err != nil {
+			return nil
 		}
 
-		logger.Info("PubSub successfully initialize", "topic", ctx.Config.PubSub.Topic)
+		// Gunakan konfigurasi utama lalu ganti subscription
+		newConfig := ctx.Config.PubSub
+		newConfig.Topic = m.config.ProducerTopic
+		lib, err := ctx.LoadInstance(load, "producer", ctx.Context, newConfig)
+		if err != nil {
+			return err
+		}
+
+		producer := lib.(loader.IPubSub)
+		m.producer = producer
+		logger.Info("PubSub Producer successfully initialize", "topic", newConfig.Topic)
 	}
 
 	// Register routes
@@ -280,6 +287,10 @@ func (m *Module) PublishPubSubSkriningCKG(c *fiber.Ctx) error {
 
 	data := tbmodels.DataSkriningTBResult{}
 	data.FromMap(payload.Data.(map[string]any))
+
+	// check field *_satusehat lalu petakan ke *_sitb
+	m.repositoryTB.MappingMasterDataInSkriningTBResult(m.context.Context, m.context.Context, &data)
+
 	pubsubObjectWrapper := models.NewPubSubProducerWrapper(m.config, []*tbmodels.DataSkriningTBResult{&data})
 	dataStr, err := pubsubObjectWrapper.ToJSON()
 	if err != nil {

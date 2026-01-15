@@ -8,6 +8,7 @@ import (
 
 	"github.com/semanggilab/webcore-go/app/loader"
 	"github.com/semanggilab/webcore-go/app/logger"
+	"github.com/semanggilab/webcore-go/modules/tb/models"
 	tbmodels "github.com/semanggilab/webcore-go/modules/tb/models"
 	"github.com/semanggilab/webcore-go/modules/tb/utils"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
@@ -277,6 +278,45 @@ func (r *CKGTBRepository) UpdateTbPatientStatus(input []tbmodels.StatusPasienTBI
 	}
 
 	return results, nil
+}
+
+func (r *CKGTBRepository) MappingMasterDataInSkriningTBResult(ctxMasterWilayah context.Context, ctxMasterFaskes context.Context, res *models.DataSkriningTBResult) {
+	collectionNameMasterWilayah := r.Configurations.TB.TableMasterWilayah
+	if utils.IsNotEmptyString(res.PasienKelurahanSatusehat) {
+		kelurahan, _ := utils.FindMasterWilayah(*res.PasienKelurahanSatusehat, ctxMasterWilayah, r.Connnection, collectionNameMasterWilayah, r.useCache, &r.cacheWilayah)
+		if kelurahan != nil {
+			res.PasienKelurahanSitb = kelurahan.KelurahanID
+		}
+	}
+
+	if utils.IsNotEmptyString(res.PasienKecamatanSatusehat) {
+		kecamatan, _ := utils.FindMasterWilayah(*res.PasienKecamatanSatusehat, ctxMasterWilayah, r.Connnection, collectionNameMasterWilayah, r.useCache, &r.cacheWilayah)
+		if kecamatan != nil {
+			res.PasienKecamatanSitb = kecamatan.KecamatanID
+		}
+	}
+
+	if utils.IsNotEmptyString(res.PasienKabkotaSatusehat) {
+		kabupaten, _ := utils.FindMasterWilayah(*res.PasienKabkotaSatusehat, ctxMasterWilayah, r.Connnection, collectionNameMasterWilayah, r.useCache, &r.cacheWilayah)
+		if kabupaten != nil {
+			res.PasienKabkotaSitb = kabupaten.KabupatenID
+		}
+	}
+
+	if utils.IsNotEmptyString(res.PasienProvinsiSatusehat) {
+		provinsi, _ := utils.FindMasterWilayah(*res.PasienProvinsiSatusehat, ctxMasterWilayah, r.Connnection, collectionNameMasterWilayah, r.useCache, &r.cacheWilayah)
+		if provinsi != nil {
+			res.PasienProvinsiSitb = provinsi.ProvinsiID
+		}
+	}
+
+	if utils.IsNotEmptyString(res.KodeFaskesSatusehat) {
+		collectionNameMasterFaskes := r.Configurations.TB.TableMasterFaskes
+		faskes, _ := utils.FindMasterFaskes(*res.KodeFaskesSatusehat, ctxMasterFaskes, r.Connnection, collectionNameMasterFaskes, r.useCache, &r.cacheFaskes)
+		if faskes != nil {
+			res.KodeFaskesSITB = faskes.ID
+		}
+	}
 }
 
 func (r *CKGTBRepository) _MappingMasterData(ctxMasterWilayah context.Context, ctxMasterFaskes context.Context, raw tbmodels.DataSkriningTBRaw, res *tbmodels.DataSkriningTBResult) {
