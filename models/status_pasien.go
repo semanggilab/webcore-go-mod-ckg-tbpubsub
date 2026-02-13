@@ -4,7 +4,7 @@ package models
 
 // /*
 // *
-// status_diagnosa:
+// jenis_pasien:
 // - TBC SO
 // - TBC RO
 // - Bukan TBC
@@ -33,7 +33,7 @@ package models
 // 	PasienNIK   *string `json:"pasien_nik" bson:"pasien_nik"`
 
 // 	// Parameter dikendalikan dari SITB
-// 	StatusDiagnosis          *string `json:"status_diagnosa" bson:"status_diagnosa"`               // ["TBC SO", "TBC RO", "Bukan TBC"]
+// 	StatusDiagnosis          *string `json:"jenis_pasien" bson:"jenis_pasien"`               // ["TBC SO", "TBC RO", "Bukan TBC"]
 // 	DiagnosisLabHasilTCM     *string `json:"diagnosa_lab_hasil_tcm" bson:"diagnosa_lab_hasil_tcm"` // TCM: ["not_detected", "rif_sen", "rif_res", "rif_indet", "invalid", "error", "no_result", "tdl"]
 // 	DiagnosisLabHasilBTA     *string `json:"diagnosa_lab_hasil_bta" bson:"diagnosa_lab_hasil_bta"` // BTA: ["negatif", "positif"]
 // 	TanggalMulaiPengobatan   *string `json:"tanggal_mulai_pengobatan" bson:"tanggal_mulai_pengobatan"`
@@ -67,7 +67,7 @@ package models
 // 	if val, ok := data["pasien_tb_id"].(string); ok {
 // 		s.PasienTbID = &val
 // 	}
-// 	if val, ok := data["status_diagnosa"].(string); ok {
+// 	if val, ok := data["jenis_pasien"].(string); ok {
 // 		s.StatusDiagnosis = &val
 // 	}
 // 	if val, ok := data["diagnosa_lab_hasil_tcm"].(string); ok {
@@ -97,7 +97,7 @@ package models
 // 		"terduga_id":                 s.TerdugaID,
 // 		"pasien_nik":                 s.PasienNIK,
 // 		"pasien_tb_id":               s.PasienTbID,
-// 		"status_diagnosa":            s.StatusDiagnosis,
+// 		"jenis_pasien":            s.StatusDiagnosis,
 // 		"diagnosa_lab_hasil_tcm":     s.DiagnosisLabHasilTCM,
 // 		"diagnosa_lab_hasil_bta":     s.DiagnosisLabHasilBTA,
 // 		"tanggal_mulai_pengobatan":   s.TanggalMulaiPengobatan,

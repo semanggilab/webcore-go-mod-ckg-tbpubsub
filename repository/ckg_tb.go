@@ -6,12 +6,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/semanggilab/webcore-go/app/loader"
-	"github.com/semanggilab/webcore-go/app/logger"
 	"github.com/semanggilab/webcore-go/modules/tb/models"
 	tbmodels "github.com/semanggilab/webcore-go/modules/tb/models"
 	"github.com/semanggilab/webcore-go/modules/tb/utils"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
+	"github.com/webcore-go/webcore/infra/logger"
+	"github.com/webcore-go/webcore/port"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -24,7 +24,7 @@ type CKGTBRepoPubSub interface {
 
 type CKGTBRepository struct {
 	Configurations *config.ModuleConfig
-	Connnection    loader.IDatabase
+	Connnection    port.IDatabase
 	Context        context.Context
 	// MasterWilayahTable any
 	// MasterFaskesTable  any
@@ -36,7 +36,7 @@ type CKGTBRepository struct {
 	cacheFaskes  map[string]tbmodels.MasterFaskes
 }
 
-func NewCKGTBRepository(ctx context.Context, config *config.ModuleConfig, conn loader.IDatabase) *CKGTBRepository {
+func NewCKGTBRepository(ctx context.Context, config *config.ModuleConfig, conn port.IDatabase) *CKGTBRepository {
 
 	// _, masterWilayahTable := utils.GetCollection(ctx, conn, config.CKG.TableMasterWilayah, 0)
 	// _, masterFaskesTable := utils.GetCollection(ctx, conn, config.CKG.TableMasterFaskes, 0)
@@ -48,6 +48,8 @@ func NewCKGTBRepository(ctx context.Context, config *config.ModuleConfig, conn l
 		Connnection:    conn,
 		Context:        ctx,
 		useCache:       config.TB.UseCache,
+		cacheWilayah:   map[string]tbmodels.MasterWilayah{},
+		cacheFaskes:    map[string]tbmodels.MasterFaskes{},
 		// MasterWilayahTable: masterWilayahTable,
 		// MasterFaskesTable:  masterFaskesTable,
 		// TbPatientTable:     tbPatientTable,
@@ -57,13 +59,27 @@ func NewCKGTBRepository(ctx context.Context, config *config.ModuleConfig, conn l
 
 func (r *CKGTBRepository) GetPendingTbSkrining(start string, end string, limit int64) ([]tbmodels.DataSkriningTBResult, error) {
 	// Get Skrining
-	filter := loader.DbMap{
-		"updated_at": loader.DbMap{
-			"$gte": start,
-			"$lte": end,
+	// filter := port.DbMap{
+	// 	"updated_at": port.DbMap{
+	// 		"$gte": start,
+	// 		"$lte": end,
+	// 	},
+	// }
+	filter := []port.DbExpression{
+		{
+			Expr: "updated_at",
+			Op:   ">=",
+			Args: []any{start},
+		},
+		{
+			Expr: "updated_at",
+			Op:   "<=",
+			Args: []any{end},
 		},
 	}
-	ret, err := r.Connnection.Find(r.Context, r.Configurations.TB.TableTransaction, nil, filter, nil, limit, 0)
+
+	var ret []port.DbMap
+	err := r.Connnection.Find(r.Context, &ret, r.Configurations.TB.TableTransaction, nil, filter, nil, limit, 0)
 	if err != nil {
 		logger.Debug("GetPendingTbSkrining:", "error", err)
 		return nil, err
@@ -170,8 +186,11 @@ func (r *CKGTBRepository) UpdateTbPatientStatus(input []tbmodels.StatusPasienTBI
 				// filterTx := bson.D{
 				// 	{Key: "nik", Value: item.PasienNIK},
 				// }
-				filterTx := loader.DbMap{
-					"nik": item.PasienNIK,
+				// filterTx := port.DbMap{
+				// 	"nik": item.PasienNIK,
+				// }
+				filterTx := []port.DbExpression{
+					{Expr: "nik", Op: "=", Args: []any{item.PasienNIK}},
 				}
 
 				// errTx := r.TransactionTable.FindOne(r.Context, filterTx).Decode(&transaction)
@@ -225,8 +244,11 @@ func (r *CKGTBRepository) UpdateTbPatientStatus(input []tbmodels.StatusPasienTBI
 				// filterTx := bson.D{
 				// 	{Key: "nik", Value: item.PasienNIK},
 				// }
-				filterTx := loader.DbMap{
-					"nik": item.PasienNIK,
+				// filterTx := port.DbMap{
+				// 	"nik": item.PasienNIK,
+				// }
+				filterTx := []port.DbExpression{
+					{Expr: "nik", Op: "=", Args: []any{item.PasienNIK}},
 				}
 
 				// errTx := r.TransactionTable.FindOne(r.Context, filterTx).Decode(&transaction)
@@ -319,6 +341,125 @@ func (r *CKGTBRepository) MappingMasterDataInSkriningTBResult(ctxMasterWilayah c
 	}
 }
 
+func (r *CKGTBRepository) HitungHasilSkriningTBResult(res *tbmodels.DataSkriningTBResult) {
+	hasilSkrining := "Tidak"
+
+	if res.PasienUsia < 15 {
+		// Gejala batuk dan sudah lebih dari 14 hari
+		if res.GejalaBatuk != nil && *res.GejalaBatuk == "Ya" {
+			hasilSkrining = "Ya"
+		}
+		if res.GejalaBbTurun != nil && *res.GejalaBbTurun == "Ya" {
+			hasilSkrining = "Ya"
+		}
+		if res.GejalaDemamHilangTimbul != nil && *res.GejalaDemamHilangTimbul == "Ya" {
+			hasilSkrining = "Ya"
+		}
+		if res.GejalaLesuMalaise != nil && *res.GejalaLesuMalaise == "Ya" {
+			hasilSkrining = "Ya"
+		}
+
+		// bersihkan gejala untuk dewasa
+		res.GejalaBerkeringatMalam = nil
+		res.GejalaPembesaranKelenjarGB = nil
+	} else { // 15 tahun ke atas
+		if res.InfeksiHivAids != nil && *res.InfeksiHivAids == "Ya" {
+			// Cukup gejala batuk tanpa harus melihat sudah 14 hari atau tidak
+			if res.GejalaBatuk != nil && *res.GejalaBatuk == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaBbTurun != nil && *res.GejalaBbTurun == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaDemamHilangTimbul != nil && *res.GejalaDemamHilangTimbul == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaBerkeringatMalam != nil && *res.GejalaBerkeringatMalam == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaPembesaranKelenjarGB != nil && *res.GejalaPembesaranKelenjarGB == "Ya" {
+				hasilSkrining = "Ya"
+			}
+		} else {
+			// Gejala batuk dan sudah lebih dari 14 hari
+			if res.GejalaBatuk != nil && *res.GejalaBatuk == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaBbTurun != nil && *res.GejalaBbTurun == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaDemamHilangTimbul != nil && *res.GejalaDemamHilangTimbul == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaBerkeringatMalam != nil && *res.GejalaBerkeringatMalam == "Ya" {
+				hasilSkrining = "Ya"
+			}
+			if res.GejalaPembesaranKelenjarGB != nil && *res.GejalaPembesaranKelenjarGB == "Ya" {
+				hasilSkrining = "Ya"
+			}
+		}
+
+		// bersihkan gejala untuk anak
+		res.GejalaLesuMalaise = nil
+	}
+
+	res.HasilSkriningTbc = &hasilSkrining
+	if hasilSkrining == "Ya" {
+		if res.HasilPemeriksaanTbTcm != nil {
+			//TODO: koordinasikan mapping nilai TCM dengan DE
+			// convert hasil TCM ke ["not_detected", "rif_sen", "rif_res", "rif_indet", "invalid", "error", "no_result", "tdl"]
+			mapTcm := map[string]string{
+				"neg":       "not_detected",
+				"rif sen":   "rif_sen",
+				"rif res":   "rif_res",
+				"rif indet": "rif_indet",
+				"invalid":   "invalid",
+				"error":     "error",
+				"no result": "no_result",
+			}
+			if utils.IsNotEmptyString(res.HasilPemeriksaanTbTcm) {
+				tcm := strings.ToLower(*res.HasilPemeriksaanTbTcm)
+				if val, ok := mapTcm[tcm]; ok {
+					res.HasilPemeriksaanTbTcm = &val
+				}
+			}
+		}
+
+		if res.HasilPemeriksaanTbBta != nil {
+			//TODO: koordinasikan mapping nilai BTA dengan DE
+			// convert hasil BTA ke ["negatif", "positif"]
+			var hasilTbBta *string
+			if utils.IsNotEmptyString(res.HasilPemeriksaanTbBta) {
+				bta := strings.ToLower(*res.HasilPemeriksaanTbBta)
+				hasilTbBta = &bta
+			}
+			res.HasilPemeriksaanTbBta = hasilTbBta
+		}
+
+		if res.HasilPemeriksaanPoct != nil {
+			// convert hasil POCT ke ["negatif", "positif"]
+			var hasilTbPoct *string
+			if utils.IsNotEmptyString(res.HasilPemeriksaanPoct) {
+				poct := strings.ToLower(*res.HasilPemeriksaanPoct)
+				hasilTbPoct = &poct
+			}
+			res.HasilPemeriksaanPoct = hasilTbPoct
+		}
+
+		if res.HasilPemeriksaanRadiologi != nil {
+			// convert hasil Radiologi ke ["normal", "abnormalitas-tbc", "abnormalitas-bukan-tbc"]
+			var hasilHasilPemeriksaanRadiologi *string
+			if utils.IsNotEmptyString(res.HasilPemeriksaanRadiologi) {
+				radiologi := strings.ReplaceAll(strings.ToLower(*res.HasilPemeriksaanRadiologi), " ", "-")
+				hasilHasilPemeriksaanRadiologi = &radiologi
+			}
+			res.HasilPemeriksaanRadiologi = hasilHasilPemeriksaanRadiologi
+		}
+
+		res.TerdugaTb = &hasilSkrining
+	}
+}
+
 func (r *CKGTBRepository) _MappingMasterData(ctxMasterWilayah context.Context, ctxMasterFaskes context.Context, raw tbmodels.DataSkriningTBRaw, res *tbmodels.DataSkriningTBResult) {
 	collectionNameMasterWilayah := r.Configurations.TB.TableMasterWilayah
 	if utils.IsNotEmptyString(raw.PasienKelurahan) {
@@ -379,17 +520,17 @@ func (r *CKGTBRepository) _ValidateSkriningData(item tbmodels.StatusPasienTBInpu
 
 	// Paling tidak StatusTerduga, atau DiagnosisLabHasil harus ada
 	if item.PasienTbID != nil && (item.StatusDiagnosis == nil || !slices.Contains(statusDiagnosis, *item.StatusDiagnosis)) {
-		return fmt.Errorf("validation error at index %d: at least one of status_terduga, or status_diagnosa must be provided", i)
+		return fmt.Errorf("validation error at index %d: at least one of status_terduga, or jenis_pasien must be provided", i)
 	} else {
 		item.StatusDiagnosis = nil // abaikan
 	}
 
 	if utils.IsNotEmptyString(item.StatusDiagnosis) {
 		if !utils.IsNotEmptyString(item.DiagnosisLabHasilTCM) {
-			return fmt.Errorf("validation error at index %d: diagnosis_lab_hasil_tcm is required when status_diagnosa is provided", i)
+			return fmt.Errorf("validation error at index %d: diagnosis_lab_hasil_tcm is required when jenis_pasien is provided", i)
 		}
 		if !utils.IsNotEmptyString(item.DiagnosisLabHasilBTA) {
-			return fmt.Errorf("validation error at index %d: diagnosis_lab_hasil_bta is required when status_diagnosa is provided", i)
+			return fmt.Errorf("validation error at index %d: diagnosis_lab_hasil_bta is required when jenis_pasien is provided", i)
 		}
 	}
 
