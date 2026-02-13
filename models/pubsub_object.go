@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/semanggilab/webcore-go/app/helper"
-	"github.com/semanggilab/webcore-go/app/logger"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
+	"github.com/webcore-go/webcore/app/helper"
+	"github.com/webcore-go/webcore/infra/logger"
 )
 
 const (

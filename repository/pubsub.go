@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	"github.com/semanggilab/webcore-go/app/loader"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/models"
+	"github.com/webcore-go/webcore/port"
 )
 
 type PubSub interface {
@@ -22,10 +22,10 @@ type PubSub interface {
 type PubSubRepository struct {
 	Configurations *config.ModuleConfig
 	Context        context.Context
-	Connnection    loader.IDatabase
+	Connnection    port.IDatabase
 }
 
-func NewPubSubRepository(ctx context.Context, config *config.ModuleConfig, conn loader.IDatabase) *PubSubRepository {
+func NewPubSubRepository(ctx context.Context, config *config.ModuleConfig, conn port.IDatabase) *PubSubRepository {
 	return &PubSubRepository{
 		Configurations: config,
 		Context:        ctx,
@@ -34,12 +34,16 @@ func NewPubSubRepository(ctx context.Context, config *config.ModuleConfig, conn 
 }
 
 func (r *PubSubRepository) GetIncomingIDs(messageIDs []string) ([]string, error) {
-	filter := loader.DbMap{
-		"id": loader.DbMap{
-			"$in": messageIDs,
-		},
+	// filter := port.DbMap{
+	// 	"id": port.DbMap{
+	// 		"$in": messageIDs,
+	// 	},
+	// }
+	filter := []port.DbExpression{
+		{Expr: "id", Op: "IN", Args: []any{messageIDs}},
 	}
-	ids, err := r.Connnection.Find(r.Context, r.Configurations.TableIncoming, []string{"id"}, filter, nil, 0, 0)
+	var ids []port.DbMap
+	err := r.Connnection.Find(r.Context, &ids, r.Configurations.TableIncoming, []string{"id"}, filter, nil, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -63,10 +67,13 @@ func (r *PubSubRepository) SaveNewIncoming(incoming models.IncomingMessageStatus
 }
 
 func (r *PubSubRepository) UpdateIncoming(messageID string, processedAt *string) error {
-	filter := loader.DbMap{
-		"id": messageID,
+	// filter := port.DbMap{
+	// 	"id": messageID,
+	// }
+	filter := []port.DbExpression{
+		{Expr: "id", Op: "=", Args: []any{messageID}},
 	}
-	update := loader.DbMap{
+	update := port.DbMap{
 		"processed_at": processedAt,
 	}
 	_, err := r.Connnection.UpdateOne(r.Context, r.Configurations.TableIncoming, filter, update)
@@ -78,21 +85,28 @@ func (r *PubSubRepository) UpdateIncoming(messageID string, processedAt *string)
 }
 
 func (r *PubSubRepository) DeleteIncomingMessage(dateExpired string) {
-	filter := loader.DbMap{
-		"received_at": loader.DbMap{
-			"$lt": dateExpired,
-		},
+	// filter := port.DbMap{
+	// 	"received_at": port.DbMap{
+	// 		"$lt": dateExpired,
+	// 	},
+	// }
+	filter := []port.DbExpression{
+		{Expr: "received_at", Op: "<", Args: []any{dateExpired}},
 	}
 	r.Connnection.DeleteOne(r.Context, r.Configurations.TableIncoming, filter)
 }
 
 func (r *PubSubRepository) GetOutgoingIDs(messageIDs []string) ([]string, error) {
-	filter := loader.DbMap{
-		"id": loader.DbMap{
-			"$in": messageIDs,
-		},
+	// filter := port.DbMap{
+	// 	"id": port.DbMap{
+	// 		"$in": messageIDs,
+	// 	},
+	// }
+	filter := []port.DbExpression{
+		{Expr: "id", Op: "IN", Args: []any{messageIDs}},
 	}
-	ids, err := r.Connnection.Find(r.Context, r.Configurations.TableOutgoing, []string{"id"}, filter, nil, 0, 0)
+	var ids []port.DbMap
+	err := r.Connnection.Find(r.Context, &ids, r.Configurations.TableOutgoing, []string{"id"}, filter, nil, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -119,15 +133,21 @@ func (r *PubSubRepository) GetLastOutgoingTimestamp() (string, error) {
 
 func (r *PubSubRepository) SaveOutgoing(outgoing models.OutgoingMessageSkriningTB) error {
 	var out models.OutgoingMessageSkriningTB
-	filter := loader.DbMap{
-		"id": outgoing.ID,
+	// filter := port.DbMap{
+	// 	"id": outgoing.ID,
+	// }
+	filter := []port.DbExpression{
+		{Expr: "id", Op: "=", Args: []any{outgoing.ID}},
 	}
 	err := r.Connnection.FindOne(r.Context, &out, r.Configurations.TableOutgoing, nil, filter, nil)
 	if err == nil && out.ID != "" {
-		filter := loader.DbMap{
-			"id": out.ID,
+		// filter := port.DbMap{
+		// 	"id": out.ID,
+		// }
+		filter := []port.DbExpression{
+			{Expr: "id", Op: "=", Args: []any{out.ID}},
 		}
-		update := loader.DbMap{
+		update := port.DbMap{
 			"updated_at": out.UpdatedAt,
 		}
 		r.Connnection.UpdateOne(r.Context, r.Configurations.TableOutgoing, filter, update)

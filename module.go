@@ -4,17 +4,17 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	appConfig "github.com/semanggilab/webcore-go/app/config"
-	"github.com/semanggilab/webcore-go/app/core"
-	"github.com/semanggilab/webcore-go/app/loader"
-	"github.com/semanggilab/webcore-go/app/logger"
-	"github.com/semanggilab/webcore-go/app/out"
 	tbconfig "github.com/semanggilab/webcore-go/modules/tb/config"
 	tbmodels "github.com/semanggilab/webcore-go/modules/tb/models"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/handler"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/models"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/repository"
+	"github.com/webcore-go/webcore/app/core"
+	"github.com/webcore-go/webcore/app/out"
+	appConfig "github.com/webcore-go/webcore/infra/config"
+	"github.com/webcore-go/webcore/infra/logger"
+	"github.com/webcore-go/webcore/port"
 )
 
 const (
@@ -27,8 +27,8 @@ const (
 type Module struct {
 	config   *config.ModuleConfig
 	context  *core.AppContext
-	consumer loader.IPubSub
-	producer loader.IPubSub
+	consumer port.IPubSub
+	producer port.IPubSub
 
 	// Add any module-specific fields here
 	repositoryTB     *repository.CKGTBRepository
@@ -120,7 +120,7 @@ func (m *Module) Init(ctx *core.AppContext) error {
 	// Initialize module components
 	// if lib, ok := libmanager.GetSingletonInstance(lName); ok {
 	if lib, ok := ctx.GetDefaultSingletonInstance("database"); ok {
-		db := lib.(loader.IDatabase)
+		db := lib.(port.IDatabase)
 		m.repositoryTB = repository.NewCKGTBRepository(ctx.Context, m.config, db)
 		m.repositoryPubSub = repository.NewPubSubRepository(ctx.Context, m.config, db)
 	}
@@ -129,7 +129,7 @@ func (m *Module) Init(ctx *core.AppContext) error {
 	producerAllowed := 0
 	lib, ok := ctx.GetDefaultSingletonInstance("pubsub")
 	if ok {
-		consumer := lib.(loader.IPubSub)
+		consumer := lib.(port.IPubSub)
 		m.consumer = consumer
 
 		// start consume and process incoming message using receiver
@@ -162,7 +162,7 @@ func (m *Module) Init(ctx *core.AppContext) error {
 			return err
 		}
 
-		producer := lib.(loader.IPubSub)
+		producer := lib.(port.IPubSub)
 		m.producer = producer
 		logger.Info("PubSub Producer successfully initialize", "topic", newConfig.Topic)
 	}
@@ -290,6 +290,9 @@ func (m *Module) PublishPubSubSkriningCKG(c *fiber.Ctx) error {
 
 	// check field *_satusehat lalu petakan ke *_sitb
 	m.repositoryTB.MappingMasterDataInSkriningTBResult(m.context.Context, m.context.Context, &data)
+	m.repositoryTB.HitungHasilSkriningTBResult(&data)
+
+	logger.DebugJson("Kirim PubSub:", data)
 
 	pubsubObjectWrapper := models.NewPubSubProducerWrapper(m.config, []*tbmodels.DataSkriningTBResult{&data})
 	dataStr, err := pubsubObjectWrapper.ToJSON()

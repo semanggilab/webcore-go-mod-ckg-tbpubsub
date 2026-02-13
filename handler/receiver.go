@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/semanggilab/webcore-go/app/loader"
-	"github.com/semanggilab/webcore-go/app/logger"
-	ppubsub "github.com/semanggilab/webcore-go/lib/pubsub"
 	tbmodels "github.com/semanggilab/webcore-go/modules/tb/models"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/config"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/models"
 	"github.com/semanggilab/webcore-go/modules/tbpubsub/repository"
+	ppubsub "github.com/webcore-go/lib-pubsub"
+	"github.com/webcore-go/webcore/infra/logger"
+	"github.com/webcore-go/webcore/port"
 )
 
 type CkgReceiver struct {
@@ -28,7 +28,7 @@ func NewCkgReceiver(ctx context.Context, config *config.ModuleConfig, ckgRepo *r
 	}
 }
 
-func (r *CkgReceiver) Prepare(ctx context.Context, messages []loader.IPubSubMessage) map[string][]any {
+func (r *CkgReceiver) Prepare(ctx context.Context, messages []port.IPubSubMessage) map[string][]any {
 	validMessages := make(map[string][]any)
 
 	// Extract message IDs
@@ -87,7 +87,7 @@ func (r *CkgReceiver) Prepare(ctx context.Context, messages []loader.IPubSubMess
 	return validMessages
 }
 
-func (r *CkgReceiver) Consume(ctx context.Context, messages []loader.IPubSubMessage) (map[string]bool, error) {
+func (r *CkgReceiver) Consume(ctx context.Context, messages []port.IPubSubMessage) (map[string]bool, error) {
 	results := make(map[string]bool)
 
 	// Filter message hanya yang belum diproses saja
