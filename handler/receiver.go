@@ -28,13 +28,15 @@ func NewCkgReceiver(ctx context.Context, config *config.ModuleConfig, ckgRepo *r
 	}
 }
 
-func (r *CkgReceiver) Prepare(ctx context.Context, messages []port.IPubSubMessage) map[string][]any {
+func (r *CkgReceiver) Prepare(ctx context.Context, messages []port.IPubSubMessage) (map[string][]any, map[string]bool) {
 	validMessages := make(map[string][]any)
+	acks := make(map[string]bool)
 
 	// Extract message IDs
 	messageIDs := make([]string, 0, len(messages))
 	for _, msg := range messages {
 		messageIDs = append(messageIDs, msg.GetID())
+		acks[msg.GetID()] = false
 	}
 
 	// Periksa semua message ID lalu hanya ambil yang belum pernah diproses saja
@@ -49,6 +51,7 @@ func (r *CkgReceiver) Prepare(ctx context.Context, messages []port.IPubSubMessag
 		// Skip jika message ID sudah diproses sebelumnya
 		if slices.Contains(existingIDs, msg.GetID()) {
 			logger.Debug("Skip message", "id", msg.GetID())
+			acks[msg.GetID()] = true
 			continue
 		}
 
@@ -84,14 +87,12 @@ func (r *CkgReceiver) Prepare(ctx context.Context, messages []port.IPubSubMessag
 		validMessages[msg.GetID()] = []any{incoming, msg, pubsubObjectWrapper.Data}
 	}
 
-	return validMessages
+	return validMessages, acks
 }
 
 func (r *CkgReceiver) Consume(ctx context.Context, messages []port.IPubSubMessage) (map[string]bool, error) {
-	results := make(map[string]bool)
-
-	// Filter message hanya yang belum diproses saja
-	validMessages := r.Prepare(ctx, messages)
+	// Filter message hanya yang belum diproses saja sebagai validMessages dan persiapkan results
+	validMessages, results := r.Prepare(ctx, messages)
 
 	// Process each valid message
 	for msgID, data := range validMessages {
